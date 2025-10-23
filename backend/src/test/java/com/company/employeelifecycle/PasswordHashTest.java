@@ -3,27 +3,58 @@ package com.company.employeelifecycle;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Validates that BCrypt hashes in data.sql match the expected password "password123".
+ * This test prevents regressions where invalid hashes are committed to the seed data.
+ */
 public class PasswordHashTest {
 
+    private static final String EXPECTED_PASSWORD = "password123";
+    private static final Pattern HASH_PATTERN = Pattern.compile("'(\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53})'");
+
     @Test
-    public void testPasswordHash() {
+    public void testDataSqlBCryptHashesAreValid() throws Exception {
         BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
-        // Generate correct hash for "password123"
-        String correctHash = encoder.encode("password123");
-        System.out.println("Correct BCrypt hash for 'password123': " + correctHash);
+        // Read data.sql from classpath
+        InputStream inputStream = getClass().getClassLoader().getResourceAsStream("data.sql");
+        assertNotNull(inputStream, "data.sql not found in classpath");
 
-        // Verify it works
-        boolean matches = encoder.matches("password123", correctHash);
-        System.out.println("Verification: password123 matches new hash: " + matches);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            StringBuilder content = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
 
-        // Test the old hash
-        String oldHash = "$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW";
-        System.out.println("\nTesting old hash: " + oldHash);
-        String[] passwords = {"password123", "Password123", "password", "test123"};
-        for (String pwd : passwords) {
-            boolean match = encoder.matches(pwd, oldHash);
-            System.out.println("Password '" + pwd + "' matches old hash: " + match);
+            // Extract all BCrypt hashes from data.sql
+            Matcher matcher = HASH_PATTERN.matcher(content.toString());
+            int hashCount = 0;
+
+            while (matcher.find()) {
+                String hash = matcher.group(1);
+                hashCount++;
+
+                // Verify each hash matches "password123"
+                boolean matches = encoder.matches(EXPECTED_PASSWORD, hash);
+                assertTrue(matches,
+                    String.format("BCrypt hash #%d in data.sql does not match expected password '%s'. Hash: %s",
+                        hashCount, EXPECTED_PASSWORD, hash));
+            }
+
+            // Ensure we found at least one hash (5 test users expected)
+            assertTrue(hashCount >= 5,
+                String.format("Expected at least 5 BCrypt hashes in data.sql, found %d", hashCount));
+
+            System.out.println("✓ Validated " + hashCount + " BCrypt hashes in data.sql - all match '" + EXPECTED_PASSWORD + "'");
         }
     }
 }

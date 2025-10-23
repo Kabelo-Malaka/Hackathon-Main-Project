@@ -57,6 +57,14 @@ public class SecurityConfig {
             )
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                // CSRF Exemption Rationale:
+                // The login endpoint is exempted from CSRF protection to avoid chicken-and-egg problem:
+                // - User cannot obtain CSRF token without being authenticated
+                // - User cannot authenticate without submitting login form
+                // - This is a standard pattern for form-based authentication endpoints
+                // Mitigation: Login endpoint only accepts credentials, does not perform state-changing
+                // operations on behalf of authenticated users. Post-authentication endpoints remain
+                // protected by CSRF tokens.
                 .ignoringRequestMatchers("/api/auth/login")
             );
 
