@@ -1,0 +1,3 @@
+-- Initial schema placeholder
+-- This migration serves as the baseline for the Employee Lifecycle Management System database
+-- Future migrations will add tables for users, workflows, tasks, and audit logs
